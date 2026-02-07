@@ -1,7 +1,7 @@
-﻿using E_Commerce.Data;
+﻿using E_Commerce.Data.Repositories;
 using E_Commerce.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using E_Commerce.Dtos;
 
 namespace E_Commerce.Controllers
 {
@@ -9,59 +9,77 @@ namespace E_Commerce.Controllers
     [ApiController]
     public class ProductController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IProductRepository _repository;
 
-        // Dependency injection to access the database context
-        public ProductController(AppDbContext context)
+        public ProductController(IProductRepository repository)
         {
-            _context = context;
+            _repository = repository;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
         {
-            // Returns all products from the database
-            return await _context.Products.ToListAsync();
+            var products = await _repository.GetAllAsync();
+            return Ok(products);
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<Product>> GetProduct(int id)
         {
-            // Find a specific product by its unique identifier
-            var product = await _context.Products.FindAsync(id);
+            var product = await _repository.GetByIdAsync(id);
+            if (product == null) return NotFound();
 
-            if (product == null)
-            {
-                return NotFound();
-            }
-
-            return product;
+            return Ok(product);
         }
 
-        [HttpPost]
-        public async Task<ActionResult<Product>> CreateProduct(Product product)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateProduct(int id, Product product)
         {
-            // Add a new product and save changes to the database
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
+            if (id != product.Id) return BadRequest();
 
-            return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
+            await _repository.UpdateAsync(product);
+            return NoContent();
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
-            // Find the product and remove it if it exists
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
+            var product = await _repository.GetByIdAsync(id);
+            if (product == null) return NotFound();
+
+            await _repository.DeleteAsync(id);
+            return NoContent();
+        }
+        [HttpPost]
+        public async Task<ActionResult<ProductReadDto>> CreateProduct(ProductCreateDto productDto)
+        {
+            if (!ModelState.IsValid)
             {
-                return NotFound();
+                return BadRequest(ModelState);
             }
 
-            _context.Products.Remove(product);
-            await _context.SaveChangesAsync();
+            var product = new Product
+            {
+                Name = productDto.Name,
+                Description = productDto.Description,
+                Price = productDto.Price,
+                StockQuantity = productDto.StockQuantity,
+                Category = productDto.Category,
+                CreatedDate = DateTime.Now
+            };
 
-            return NoContent();
+            await _repository.AddAsync(product);
+
+            var readDto = new ProductReadDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Description = product.Description,
+                Price = product.Price,
+                Category = product.Category
+            };
+
+            return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, readDto);
         }
     }
 }

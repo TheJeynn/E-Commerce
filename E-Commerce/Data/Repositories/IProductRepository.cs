@@ -13,6 +13,8 @@ namespace E_Commerce.Data.Repositories
         // Add new product
         Task AddAsync(Product product);
 
+        Task UpdateAsync(Product product);
+
         // Delete product
         Task DeleteAsync(int id);
 
